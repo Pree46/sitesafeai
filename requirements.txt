@@ -1,26 +1,25 @@
-# General packages
+# Core Python packages
 numpy
 opencv-python
+requests
+logging
+
+# Flask web app and real-time communication
 flask
+flask-cors
 flask-socketio
+werkzeug
+
+# PyTorch and YOLOv8
 torch
 torchvision
 ultralytics
 
-# For YOLOv8 and PyTorch
-torch
-torchvision
-ultralytics  # YOLOv8 package
-
-# For OpenVINO Optimization
+# OpenVINO for optimization (optional if using Intel hardware acceleration)
 openvino
 
-# For working with Kaggle data (if you're using Kaggle API to download datasets)
+# Kaggle API (optional, for downloading datasets)
 kaggle
 
-# For sending alerts (email/SMS)
-twilio  # Optional for SMS notifications
-
-# Other utilities
-flask  # If your application is a Flask-based web app
-requests # For API requests, if needed
+# For sending alerts via email/SMS (optional)
+twilio
