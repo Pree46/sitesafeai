@@ -2,7 +2,7 @@
 numpy
 opencv-python
 requests
-logging
+
 
 # Flask web app and real-time communication
 flask

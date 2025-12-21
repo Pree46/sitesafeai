@@ -27,8 +27,12 @@ UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
+# ================== GLOBAL STATE ==================
 detections_history = []
 streaming_active = False
+
+ALERT_COOLDOWN_SECONDS = 15
+last_alert_time = 0
 
 # ================== MODEL ==================
 logger.info("Loading YOLO model...")
@@ -52,9 +56,6 @@ cap.set(cv2.CAP_PROP_FPS, 30)
 if not cap.isOpened():
     raise RuntimeError("❌ Webcam not accessible")
 
-# ================== GLOBAL STATE ==================
-detections_history = []
-
 # ================== HELPERS ==================
 def extract_violations(results):
     violations = []
@@ -68,21 +69,19 @@ def extract_violations(results):
 
 
 def record_detection(message):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    detections_history.append(f"[{timestamp}] {message}")
-
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    detections_history.append(f"[{ts}] {message}")
 
 # ================== EMAIL ==================
 def send_email(report):
     sender = "sitesafety.ai@gmail.com"
     receiver = "xxx@gmail.com"
-    password = "xxxxxxxxxx"  # move to env in production
+    password = "xxxxxxxxxx"  # use env in prod
 
     msg = MIMEMultipart()
     msg["From"] = sender
     msg["To"] = receiver
     msg["Subject"] = "SiteSafeAI – Detection Report"
-
     msg.attach(MIMEText(report, "plain"))
 
     try:
@@ -93,9 +92,10 @@ def send_email(report):
     except Exception as e:
         logger.error(f"Email error: {e}")
 
-
 # ================== STREAM ==================
 def generate_frames():
+    global last_alert_time
+
     while True:
         success, frame = cap.read()
         if not success:
@@ -104,16 +104,22 @@ def generate_frames():
 
         try:
             results = model(frame, verbose=False)
-            violations = extract_violations(results)
 
-            if violations:
-                message = f"Violation detected: {', '.join(violations)}"
-                record_detection(message)
+            # ALERTS ONLY WHEN STREAMING ACTIVE
+            if streaming_active:
+                violations = extract_violations(results)
+                now = time.time()
 
-                socketio.emit("status_update", {
-                    "message": message,
-                    "timestamp": datetime.now().strftime("%H:%M:%S")
-                })
+                if violations and (now - last_alert_time) > ALERT_COOLDOWN_SECONDS:
+                    message = f"Violation detected: {', '.join(violations)}"
+                    record_detection(message)
+
+                    socketio.emit("status_update", {
+                        "message": message,
+                        "timestamp": datetime.now().strftime("%H:%M:%S")
+                    })
+
+                    last_alert_time = now
 
             annotated = results[0].plot()
             _, buffer = cv2.imencode(".jpg", annotated)
@@ -125,17 +131,10 @@ def generate_frames():
                 b"\r\n"
             )
 
-        except Exception as e:
+        except Exception:
             logger.error(traceback.format_exc())
-            _, buffer = cv2.imencode(".jpg", frame)
-            yield (
-                b"--frame\r\n"
-                b"Content-Type: image/jpeg\r\n\r\n" +
-                buffer.tobytes() +
-                b"\r\n"
-            )
 
-
+# ================== ROUTES ==================
 @app.route("/api/stream")
 def api_stream():
     return Response(
@@ -143,6 +142,19 @@ def api_stream():
         mimetype="multipart/x-mixed-replace; boundary=frame"
     )
 
+@app.route("/api/start", methods=["POST"])
+def start_stream():
+    global streaming_active, last_alert_time
+    streaming_active = True
+    last_alert_time = 0
+    logger.info("🚨 STREAMING STARTED — alerts enabled")
+    return jsonify({"status": "streaming started"})
+
+@app.route("/api/stop", methods=["POST"])
+def stop_stream():
+    global streaming_active
+    streaming_active = False
+    return jsonify({"status": "streaming stopped"})
 
 # ================== IMAGE UPLOAD ==================
 @app.route("/api/upload", methods=["POST"])
@@ -164,7 +176,6 @@ def api_upload():
         out_name = f"annotated_{int(time.time())}_{filename}"
         out_path = os.path.join(UPLOAD_FOLDER, out_name)
         cv2.imwrite(out_path, annotated)
-
         os.remove(path)
 
         return jsonify({
@@ -172,33 +183,45 @@ def api_upload():
             "annotated_image": f"http://127.0.0.1:5000/uploads/{out_name}"
         })
 
-    except Exception as e:
+    except Exception:
         logger.error(traceback.format_exc())
-        return jsonify({"error": str(e)}), 500
-
+        return jsonify({"error": "Processing failed"}), 500
 
 @app.route("/uploads/<filename>")
 def serve_upload(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
-
 
 # ================== VIDEO UPLOAD ==================
 @app.route("/api/upload/video", methods=["POST"])
 def upload_video():
     file = request.files["file"]
     filename = secure_filename(file.filename)
-    path = os.path.join(UPLOAD_FOLDER, filename)
-    file.save(path)
 
-    cap_vid = cv2.VideoCapture(path)
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    fps = int(cap_vid.get(cv2.CAP_PROP_FPS))
+    # FORCE mp4 extension
+    if not filename.lower().endswith(".mp4"):
+        filename = filename.rsplit(".", 1)[0] + ".mp4"
+
+    input_path = os.path.join(UPLOAD_FOLDER, filename)
+    file.save(input_path)
+
+    cap_vid = cv2.VideoCapture(input_path)
+
+    fps = cap_vid.get(cv2.CAP_PROP_FPS)
+    if fps is None or fps <= 1:
+        fps = 25  # browser-safe default
+
     w = int(cap_vid.get(cv2.CAP_PROP_FRAME_WIDTH))
     h = int(cap_vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-    out_name = f"annotated_{int(time.time())}_{filename}"
+    # ✅ H.264 codec (browser compatible)
+    fourcc = cv2.VideoWriter_fourcc(*"avc1")
+
+    out_name = f"annotated_{int(time.time())}.mp4"
     out_path = os.path.join(UPLOAD_FOLDER, out_name)
+
     out = cv2.VideoWriter(out_path, fourcc, fps, (w, h))
+    if not out.isOpened():
+        raise RuntimeError("VideoWriter failed to open with H.264 codec")
 
     violations = set()
 
@@ -213,7 +236,7 @@ def upload_video():
 
     cap_vid.release()
     out.release()
-    os.remove(path)
+    os.remove(input_path)
 
     return jsonify({
         "violations": list(violations),
@@ -227,18 +250,12 @@ def api_report():
     report = "\n".join(detections_history) or "No alerts yet."
     send_email(report)
     detections_history.clear()
+    return jsonify({"message": "Report sent"})
 
-    return jsonify({
-        "message": "Report generated and emailed",
-        "count": len(report.splitlines())
-    })
-
-
-# ================== SOCKET.IO ==================
+# ================== SOCKET ==================
 @socketio.on("connect")
 def on_connect():
     logger.info("Socket connected")
-
 
 @socketio.on("disconnect")
 def on_disconnect():
@@ -249,4 +266,3 @@ if __name__ == "__main__":
     print("\n🚀 SiteSafeAI Backend Running")
     print("📍 http://127.0.0.1:5000\n")
     socketio.run(app, debug=True, use_reloader=False)
-
