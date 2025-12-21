@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { io } from 'socket.io-client';
 import {
   Camera,
   Upload,
@@ -13,10 +12,11 @@ import {
   Zap
 } from 'lucide-react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const WS_URL = API_URL.replace('http', 'ws') + '/ws/alerts';
 
 export default function SiteSafeAI() {
-  const socketRef = useRef(null);
+  const wsRef = useRef(null);
 
   const [isStreaming, setIsStreaming] = useState(false);
   const [alerts, setAlerts] = useState([]);
@@ -26,14 +26,27 @@ export default function SiteSafeAI() {
   const [isUploading, setIsUploading] = useState(false);
   const [activeTab, setActiveTab] = useState('live');
 
-  // ================= SOCKET.IO =================
+  // ================= WEBSOCKET =================
   useEffect(() => {
-    socketRef.current = io(API_URL, { transports: ['websocket'] });
+    const ws = new WebSocket(WS_URL);
+    wsRef.current = ws;
 
-    socketRef.current.on('connect', () => setIsConnected(true));
-    socketRef.current.on('disconnect', () => setIsConnected(false));
+    ws.onopen = () => {
+      console.log('WebSocket connected');
+      setIsConnected(true);
+    };
 
-    socketRef.current.on('status_update', (data) => {
+    ws.onclose = () => {
+      console.log('WebSocket disconnected');
+      setIsConnected(false);
+    };
+
+    ws.onerror = () => {
+      setIsConnected(false);
+    };
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
       setAlerts(prev => [
         {
           id: Date.now(),
@@ -42,9 +55,9 @@ export default function SiteSafeAI() {
         },
         ...prev.slice(0, 9),
       ]);
-    });
+    };
 
-    return () => socketRef.current.disconnect();
+    return () => ws.close();
   }, []);
 
   // ================= STREAM CONTROL =================
@@ -100,7 +113,7 @@ export default function SiteSafeAI() {
   const requestReport = async () => {
     const res = await fetch(`${API_URL}/api/report`);
     const data = await res.json();
-    alert(`Report sent!\nAlerts included: ${data.count}`);
+    alert(`Report sent!\nAlerts included: ${data.count ?? 0}`);
   };
 
   // ================= UI =================
@@ -114,11 +127,13 @@ export default function SiteSafeAI() {
         </div>
 
         <div className="flex items-center gap-6">
-          <span className={`px-3 py-1 rounded-full text-sm flex items-center gap-2 ${
-            isConnected
-              ? 'bg-green-500/20 text-green-300'
-              : 'bg-red-500/20 text-red-300'
-          }`}>
+          <span
+            className={`px-3 py-1 rounded-full text-sm flex items-center gap-2 ${
+              isConnected
+                ? 'bg-green-500/20 text-green-300'
+                : 'bg-red-500/20 text-red-300'
+            }`}
+          >
             <Activity size={14} />
             {isConnected ? 'Connected' : 'Disconnected'}
           </span>
@@ -135,10 +150,8 @@ export default function SiteSafeAI() {
 
       {/* MAIN */}
       <main className="max-w-7xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
-
         {/* LEFT */}
         <section className="lg:col-span-2 space-y-6">
-
           {/* TABS */}
           <div className="flex gap-4">
             {['live', 'upload'].map(tab => (
@@ -172,6 +185,7 @@ export default function SiteSafeAI() {
                   <img
                     src={`${API_URL}/api/stream`}
                     className="w-full rounded-xl border aspect-video object-cover"
+                    alt="Live Stream"
                   />
                   <button
                     onClick={stopStreaming}
@@ -190,25 +204,51 @@ export default function SiteSafeAI() {
               <label className="cursor-pointer flex items-center gap-3 bg-purple-600 hover:bg-purple-700 transition px-6 py-4 rounded-xl w-fit">
                 <Upload />
                 Upload Image / Video
-                <input hidden type="file" accept="image/*,video/*" onChange={handleFileUpload} />
+                <input
+                  hidden
+                  type="file"
+                  accept="image/*,video/*"
+                  onChange={handleFileUpload}
+                />
               </label>
 
               {isUploading && <p className="text-purple-300">Processing…</p>}
 
               {processedResult?.annotated_image && (
-                <img src={processedResult.annotated_image} className="rounded-xl border w-full" />
+                <img
+                  src={processedResult.annotated_image}
+                  className="rounded-xl border w-full"
+                  alt="Annotated"
+                />
               )}
 
               {processedResult?.annotated_video && (
-                <video key={processedResult.annotated_video} src={processedResult.annotated_video} controls preload="metadata" playsInline className="rounded-xl border w-full" />
+                <video
+                  key={processedResult.annotated_video}
+                  src={processedResult.annotated_video}
+                  controls
+                  preload="metadata"
+                  playsInline
+                  className="rounded-xl border w-full"
+                />
               )}
 
               {processedResult?.violations && (
-                <div className={`flex items-center gap-2 text-lg ${
-                  processedResult.violations.length ? 'text-red-400' : 'text-green-400'
-                }`}>
-                  {processedResult.violations.length ? <AlertTriangle /> : <CheckCircle />}
-                  {processedResult.violations.join(', ')}
+                <div
+                  className={`flex items-center gap-2 text-lg ${
+                    processedResult.violations.length
+                      ? 'text-red-400'
+                      : 'text-green-400'
+                  }`}
+                >
+                  {processedResult.violations.length ? (
+                    <AlertTriangle />
+                  ) : (
+                    <CheckCircle />
+                  )}
+                  {processedResult.violations.length
+                    ? processedResult.violations.join(', ')
+                    : 'No violations detected'}
                 </div>
               )}
             </div>
@@ -222,12 +262,20 @@ export default function SiteSafeAI() {
             Alerts
           </h2>
 
-          {alerts.length === 0 && <p className="text-gray-400">No alerts yet</p>}
+          {alerts.length === 0 && (
+            <p className="text-gray-400">No alerts yet</p>
+          )}
 
           <div className="space-y-3 max-h-[70vh] overflow-y-auto">
             {alerts.map(a => (
-              <div key={a.id} className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-sm">
-                <span className="text-red-300 font-semibold">[{a.timestamp}]</span> {a.message}
+              <div
+                key={a.id}
+                className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-sm"
+              >
+                <span className="text-red-300 font-semibold">
+                  [{a.timestamp}]
+                </span>{' '}
+                {a.message}
               </div>
             ))}
           </div>
