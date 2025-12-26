@@ -1,0 +1,39 @@
+# ======================
+# Face recognition (PRIVATE DATA)
+# ======================
+app/services/face_recognition/faces/
+app/services/face_recognition/embeddings.pkl
+app/services/face_recognition/debug_face.jpg
+debug_face.jpg
+debug_person.jpg
+*.whl
+.insightface/
+
+# ======================
+# Python cache
+# ======================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ======================
+# Virtual env / local python
+# ======================
+venv/
+.env/
+
+# ======================
+# OS junk
+# ======================
+.DS_Store
+Thumbs.db
+
+# ======================
+# Logs
+# ======================
+*.log
+
+#Archive files
+archive/
+

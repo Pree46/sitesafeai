@@ -15,3 +15,6 @@ app.include_router(upload_router)
 app.include_router(report_router)
 app.include_router(websocket_router)
 app.include_router(geofence_router)
+
+
+

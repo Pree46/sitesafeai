@@ -14,6 +14,9 @@ from ..geofence.engine import GeofenceEngine
 from ..geofence.zones import Zone
 from shapely.geometry import Polygon
 
+from app.services.face_recognition.recognize import recognize_worker
+
+
 logger = logging.getLogger("sitesafeai")
 
 
@@ -75,6 +78,38 @@ def load_zones_from_state():
     return zones
 
 
+def get_worker_id_from_detections(frame, results):
+    """
+    Uses YOLO person box → crops → runs InsightFace
+    """
+    detections = yolo_to_detections(results)
+
+    for det in detections:
+        if det["class"] == "Person":
+            x1, y1, x2, y2 = det["bbox"]
+
+            # safety clamp
+            h, w, _ = frame.shape
+            x1, y1 = max(0, x1), max(0, y1)
+            x2, y2 = min(w, x2), min(h, y2)
+
+            person_crop = frame[y1:y2, x1:x2]
+
+            if person_crop.size == 0:
+                continue
+
+            # 🔍 DEBUG: save once to verify
+            cv2.imwrite("debug_person.jpg", person_crop)
+
+            return recognize_worker(person_crop)
+
+    return "UNKNOWN"
+
+
+
+
+
+
 def generate_frames():
     """Main streaming loop with PPE and geofence detection"""
     
@@ -92,7 +127,12 @@ def generate_frames():
                 violations = extract_violations(results)
                 
                 if violations and alert_manager.can_alert():
-                    msg = "PPE: " + ", ".join(violations)
+                    # Identify worker
+                    worker_id = get_worker_id_from_detections(frame, results)
+                    
+                    # Build alert message
+                    msg = f"PPE violation by {worker_id}: " + ", ".join(violations)
+                    
                     alert_data = alert_manager.trigger(msg)
                     record_detection(msg)
                     

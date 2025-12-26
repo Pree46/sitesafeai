@@ -23,3 +23,6 @@ kaggle
 
 # For sending alerts via email/SMS (optional)
 twilio
+
+# Face recognition dependencies
+
