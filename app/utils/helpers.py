@@ -1,17 +1,30 @@
 from datetime import datetime
-from ..services.model import CLASS_NAMES
 
+# Store detection history (in-memory)
 detections_history = []
 
-def extract_violations(results):
-    violations = []
-    boxes = results[0].boxes
-    if boxes is not None:
-        for box in boxes:
-            label = CLASS_NAMES[int(box.cls)]
-            if label.startswith("NO-"):
-                violations.append(label)
-    return list(set(violations))
+
+def extract_violations(detections):
+    """
+    Extract PPE violations from OpenVINO detections.
+
+    Expected detection format:
+    {
+        "class": "NO-Hardhat",
+        "confidence": 0.82,
+        "bbox": (x1, y1, x2, y2)
+    }
+    """
+
+    violations = set()
+
+    for det in detections:
+        label = det.get("class", "")
+        if label.startswith("NO-"):
+            violations.add(label)
+
+    return list(violations)
+
 
 def record_detection(message):
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

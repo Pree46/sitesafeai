@@ -4,25 +4,48 @@
 
 import { API_URL } from '../constants/config';
 
+// 🔴 Holds reference to <img> element showing MJPEG stream
+let streamImgElement = null;
+
 export const api = {
   // ===== STREAMING =====
-  
+
+  /**
+   * Attach the <img> element used for MJPEG streaming
+   * Call this ONCE when component mounts
+   */
+  attachStreamElement: (imgElement) => {
+    streamImgElement = imgElement;
+  },
+
   /**
    * Start live streaming
    */
   startStream: async () => {
-    return await fetch(`${API_URL}/api/start`, { method: 'POST' });
+    // 1️⃣ Tell backend to start camera + inference
+    await fetch(`${API_URL}/api/start`, { method: 'POST' });
+
+    // 2️⃣ Open a NEW MJPEG stream connection
+    if (streamImgElement) {
+      streamImgElement.src = `${API_URL}/api/stream?ts=${Date.now()}`;
+    }
   },
 
   /**
    * Stop live streaming
    */
   stopStream: async () => {
-    return await fetch(`${API_URL}/api/stop`, { method: 'POST' });
+    // 1️⃣ CLOSE MJPEG stream (MOST IMPORTANT)
+    if (streamImgElement) {
+      streamImgElement.src = '';
+    }
+
+    // 2️⃣ Tell backend to stop camera
+    await fetch(`${API_URL}/api/stop`, { method: 'POST' });
   },
 
   // ===== FILE UPLOAD =====
-  
+
   /**
    * Upload file (image or video)
    */
@@ -53,7 +76,7 @@ export const api = {
    */
   enableGeofence: async () => {
     const res = await fetch(`${API_URL}/api/geofence/enable`, {
-      method: 'POST'
+      method: 'POST',
     });
     return await res.json();
   },
@@ -63,7 +86,7 @@ export const api = {
    */
   disableGeofence: async () => {
     const res = await fetch(`${API_URL}/api/geofence/disable`, {
-      method: 'POST'
+      method: 'POST',
     });
     return await res.json();
   },
@@ -83,7 +106,7 @@ export const api = {
     const res = await fetch(`${API_URL}/api/geofence/zones`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(zone)
+      body: JSON.stringify(zone),
     });
     return await res.json();
   },
@@ -101,7 +124,7 @@ export const api = {
    */
   deleteZone: async (zoneName) => {
     const res = await fetch(`${API_URL}/api/geofence/zones/${zoneName}`, {
-      method: 'DELETE'
+      method: 'DELETE',
     });
     return await res.json();
   },
@@ -111,8 +134,8 @@ export const api = {
    */
   clearAllZones: async () => {
     const res = await fetch(`${API_URL}/api/geofence/zones`, {
-      method: 'DELETE'
+      method: 'DELETE',
     });
     return await res.json();
-  }
+  },
 };

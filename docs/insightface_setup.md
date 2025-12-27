@@ -88,16 +88,19 @@ pip install albumentations==1.4.14 --no-deps
 
 Each collaborator must download the correct wheel for their Python version.
 
+Notes:
+
+- The `.whl` file is **NOT committed**
+- Store it locally (e.g., a `whls/` folder ignored by Git)
+- Download the whl compatible to your python version
+- example: if Python version: 3.9, Download: insightface-0.7.3-cp39-cp39-win_amd64.whl
+- https://github.com/Gourieff/Assets/tree/main/Insightface
+
 Example (Python 3.9):
 
 ```bash
 pip install path\to\insightface-0.7.3-cp39-cp39-win_amd64.whl --no-deps
 ```
-
-Notes:
-
-- The `.whl` file is **NOT committed**
-- Store it locally (e.g., a `whls/` folder ignored by Git)
 
 ---
 
@@ -123,6 +126,10 @@ InsightFace import OK
 ```
 
 ---
+
+## 8. Verify Installation
+
+create a
 
 ## Required `.gitignore` Entries
 
