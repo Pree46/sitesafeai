@@ -127,9 +127,20 @@ InsightFace import OK
 
 ---
 
-## 8. Verify Installation
+## 9. Create Embeddings
 
-create a
+- Create a folder app/services/face_recognition/faces
+- Under this create multiple worker profiles, Example: app/services/face_recognition/faces/wkr001
+- under wkr001 You will adding atleast 3-8 pictures of yourself facing the camera.
+- You can add multiple worker id's (wkr002,wkr003 etc...) in the same way.
+- Once you are done with creating worker id's and storing respective images, you can open a new Terminal.
+
+```bash
+cd face_recognition
+python build_embeddings.py
+```
+
+Now You are ready to run your Back-end
 
 ## Required `.gitignore` Entries
 

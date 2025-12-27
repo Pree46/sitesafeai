@@ -20,7 +20,7 @@ const api = {
     const res = await fetch(`${API_URL}/api/geofence/zones`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(zone)
+      body: JSON.stringify(zone),
     });
     return await res.json();
   },
@@ -31,14 +31,14 @@ const api = {
   clearAllZones: async () => {
     const res = await fetch(`${API_URL}/api/geofence/zones`, { method: 'DELETE' });
     return await res.json();
-  }
+  },
 };
 
 export function LiveStreamTab({ isStreaming, onStart, onStop }) {
   const imgRef = useRef(null);
   const canvasRef = useRef(null);
 
-  // 🔴 ONLY NEW STATE (logic fix)
+  // 🔑 MJPEG reconnect fix
   const [streamKey, setStreamKey] = useState(Date.now());
 
   const [geofenceEnabled, setGeofenceEnabled] = useState(false);
@@ -59,7 +59,6 @@ export function LiveStreamTab({ isStreaming, onStart, onStop }) {
     }
   }, [points, zones, isStreaming]);
 
-  // 🔴 ONLY CHANGE: force new MJPEG connection
   const handleStart = async () => {
     await onStart();
     setStreamKey(Date.now());
@@ -116,13 +115,75 @@ export function LiveStreamTab({ isStreaming, onStart, onStop }) {
         ctx.moveTo(zone.points[0][0], zone.points[0][1]);
         zone.points.forEach(([x, y]) => ctx.lineTo(x, y));
         ctx.closePath();
-        ctx.fillStyle = 'rgba(255,0,0,0.3)';
+
+        const [r, g, b] = zone.color || [255, 0, 0];
+        ctx.fillStyle = `rgba(${r},${g},${b},${zone.alpha || 0.3})`;
         ctx.fill();
-        ctx.strokeStyle = 'red';
+        ctx.strokeStyle = `rgb(${r},${g},${b})`;
         ctx.lineWidth = 3;
         ctx.stroke();
+
+        const text = zone.name;
+        ctx.font = 'bold 16px sans-serif';
+        const metrics = ctx.measureText(text);
+        const tx = zone.points[0][0];
+        const ty = zone.points[0][1] - 10;
+
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(tx - 5, ty - 20, metrics.width + 10, 25);
+        ctx.fillStyle = 'white';
+        ctx.fillText(text, tx, ty);
       }
     });
+
+    if (points.length > 0) {
+      ctx.beginPath();
+      ctx.moveTo(points[0][0], points[0][1]);
+
+      points.forEach(([x, y], idx) => {
+        ctx.lineTo(x, y);
+        ctx.fillStyle = 'yellow';
+        ctx.fillRect(x - 4, y - 4, 8, 8);
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText(String(idx + 1), x + 8, y - 8);
+      });
+
+      if (points.length > 2) ctx.closePath();
+      ctx.strokeStyle = 'yellow';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([5, 5]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  };
+
+  const saveZone = async () => {
+    if (points.length < 3 || !zoneName.trim()) return;
+
+    await api.saveZone({
+      name: zoneName,
+      points,
+      color: [255, 0, 0],
+      alpha: 0.3,
+    });
+
+    await loadZones();
+    setPoints([]);
+    setZoneName('');
+    setIsDrawing(false);
+  };
+
+  const clearDrawing = () => {
+    setPoints([]);
+    setZoneName('');
+    setIsDrawing(false);
+  };
+
+  const deleteAllZones = async () => {
+    if (!confirm('⚠️ Delete all zones?')) return;
+    await api.clearAllZones();
+    await loadZones();
   };
 
   return (
@@ -132,8 +193,7 @@ export function LiveStreamTab({ isStreaming, onStart, onStop }) {
           onClick={handleStart}
           className="bg-purple-600 hover:bg-purple-700 transition px-8 py-4 rounded-xl text-lg flex items-center gap-3"
         >
-          <FileVideo />
-          Start Live Detection
+          <FileVideo /> Start Live Detection
         </button>
       ) : (
         <>
@@ -165,7 +225,7 @@ export function LiveStreamTab({ isStreaming, onStart, onStop }) {
                   : 'bg-gray-600 hover:bg-gray-700'
               } transition py-3 rounded-xl flex items-center justify-center gap-2 font-semibold`}
             >
-              {geofenceEnabled ? <Shield className="w-5 h-5" /> : <ShieldOff className="w-5 h-5" />}
+              {geofenceEnabled ? <Shield /> : <ShieldOff />}
               {geofenceEnabled ? 'Geofence Active' : 'Enable Geofence'}
             </button>
 
@@ -175,6 +235,80 @@ export function LiveStreamTab({ isStreaming, onStart, onStop }) {
             >
               Stop Stream
             </button>
+          </div>
+
+          {/* ZONE PANEL */}
+          <div className="border-t border-purple-500/20 pt-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-purple-300">
+                Geofence Zones {zones.length > 0 && `(${zones.length})`}
+              </h3>
+              {zones.length > 0 && !isDrawing && (
+                <button
+                  onClick={deleteAllZones}
+                  className="text-xs text-red-400 hover:text-red-300 transition flex items-center gap-1"
+                >
+                  <Trash2 className="w-3 h-3" /> Clear All
+                </button>
+              )}
+            </div>
+
+            {!isDrawing ? (
+              <button
+                onClick={() => setIsDrawing(true)}
+                className="w-full bg-purple-600 hover:bg-purple-700 transition py-2.5 rounded-lg text-sm font-medium"
+              >
+                + Draw New Zone
+              </button>
+            ) : (
+              <div className="space-y-3 bg-purple-900/20 border border-purple-500/30 rounded-lg p-4">
+                <input
+                  value={zoneName}
+                  onChange={(e) => setZoneName(e.target.value)}
+                  placeholder="Zone Name"
+                  className="w-full bg-black/50 border border-purple-500/30 rounded-lg px-3 py-2 text-sm"
+                />
+
+                <div className="text-xs text-gray-400">
+                  <span className="font-semibold text-yellow-400">
+                    {points.length}
+                  </span>{' '}
+                  points drawn
+                  {points.length < 3 && (
+                    <span className="text-red-400"> (min 3 required)</span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={saveZone}
+                    disabled={points.length < 3 || !zoneName.trim()}
+                    className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1"
+                  >
+                    <Save className="w-4 h-4" /> Save
+                  </button>
+
+                  <button
+                    onClick={clearDrawing}
+                    className="bg-gray-600 hover:bg-gray-700 transition py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1"
+                  >
+                    <X className="w-4 h-4" /> Cancel
+                  </button>
+
+                  <button
+                    onClick={() => setPoints(points.slice(0, -1))}
+                    disabled={points.length === 0}
+                    className="bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition py-2 rounded-lg text-sm font-medium"
+                  >
+                    Undo
+                  </button>
+                </div>
+
+                <p className="text-xs text-gray-400 italic">
+                  💡 Click on the video to add points. Create a polygon by clicking at least 3 points.
+                </p>
+              </div>
+            )}
           </div>
         </>
       )}
