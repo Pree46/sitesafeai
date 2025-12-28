@@ -150,6 +150,23 @@ def stabilize_detections(detections):
 def draw_detections(frame, detections):
     h, w, _ = frame.shape
 
+    # Color codes as per user specification and model.py class names
+    color_map = {
+        # Safe classes
+        "Hardhat": (100, 167, 0),
+        "Mask": (100, 167, 0),
+        "Safety Vest": (100, 167, 0),
+        "Safety Cone": (100, 167, 0),
+        "Person": (100, 167, 0),
+        # Violation classes
+        "NO-Hardhat": (163, 23, 23),
+        "NO-Mask": (163, 23, 23),
+        "NO-Safety Vest": (163, 23, 23),
+        # Machinery/Vehicle
+        "machinery": (242, 236, 63),
+        "vehicle": (242, 236, 63),
+    }
+
     for d in detections:
         x1, y1, x2, y2 = d["bbox"]
 
@@ -164,14 +181,17 @@ def draw_detections(frame, detections):
         label = d["class"]
         conf = d["confidence"]
 
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        # Use exact match for model output class names, fallback to green
+        color = color_map[label] if label in color_map else (0, 255, 0)
+
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
         cv2.putText(
             frame,
             f"{label} {conf:.2f}",
             (x1, max(y1 - 8, 12)),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.6,
-            (0, 255, 0),
+            color,
             2
         )
 
@@ -249,25 +269,7 @@ def generate_frames():
                 )
 
                 # ===== DRAW BOXES =====
-                annotated = frame.copy()
-                for det in detections:
-                    x1, y1, x2, y2 = det["bbox"]
-                    label = f"{det['class']} {det['confidence']:.2f}"
-
-                    cv2.rectangle(
-                        annotated,
-                        (x1, y1), (x2, y2),
-                        (0, 255, 0), 2
-                    )
-                    cv2.putText(
-                        annotated,
-                        label,
-                        (x1, y1 - 6),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.5,
-                        (0, 255, 0),
-                        2
-                    )
+                annotated = draw_detections(frame.copy(), detections)
 
                 # ===== PPE VIOLATIONS =====
                 violations = extract_violations(detections)
@@ -284,34 +286,66 @@ def generate_frames():
 
                 # ===== GEOFENCE =====
                 if state.get("geofence_enabled") and state.get("zones"):
-                    zones = [
-                        Zone(
-                            name=z["name"],
-                            polygon=Polygon(z["points"]),
-                            color=tuple(z.get("color", [255, 0, 0])),
-                            alpha=z.get("alpha", 0.3)
-                        )
-                        for z in state["zones"]
-                    ]
-
-                    engine = GeofenceEngine(zones, alert_manager)
-                    geo_dets = [
-                        {"class": d["class"], "bbox": d["bbox"]}
-                        for d in detections
-                    ]
-
-                    for v in engine.process_detections(geo_dets):
-                        if alert_manager.can_alert_geofence(v["zone"]):
-                            alert_data = alert_manager.trigger_geofence(
-                                v["zone"], v["object"]
-                            )
-                            record_detection(alert_data["message"])
-
-                            threading.Thread(
-                                target=alert_in_background,
-                                args=(alert_data,),
-                                daemon=True
-                            ).start()
+                    logger.info(f"[GEOFENCE] Geofence enabled. Zones count: {len(state['zones'])}")
+                    try:
+                        zones = []
+                        for z in state["zones"]:
+                            if not z.get("points") or len(z["points"]) < 3:
+                                logger.warning(f"[GEOFENCE] Zone '{z.get('name', 'unnamed')}' has invalid or missing points: {z.get('points')}")
+                                continue
+                            try:
+                                poly = Polygon(z["points"])
+                                if not poly.is_valid:
+                                    logger.warning(f"[GEOFENCE] Zone '{z.get('name', 'unnamed')}' polygon is invalid: {z['points']}")
+                                    continue
+                                zones.append(Zone(
+                                    name=z["name"],
+                                    polygon=poly,
+                                    color=tuple(z.get("color", [255, 0, 0])),
+                                    alpha=z.get("alpha", 0.3)
+                                ))
+                            except Exception as e:
+                                logger.error(f"[GEOFENCE] Error creating polygon for zone '{z.get('name', 'unnamed')}': {e}")
+                        logger.info(f"[GEOFENCE] Valid zones after parsing: {len(zones)}")
+                        if not zones:
+                            logger.warning("[GEOFENCE] No valid geofence zones available, skipping geofence processing.")
+                        else:
+                            # Robust: For each zone, check all detections for violations inside that zone
+                            worker_id_str = worker_id if 'worker_id' in locals() else 'UNKNOWN'
+                            zone_violations = {}
+                            for zone in zones:
+                                zone_name = zone.name
+                                poly = zone.polygon
+                                for det in detections:
+                                    # Get bbox center
+                                    x1, y1, x2, y2 = det["bbox"]
+                                    cx = (x1 + x2) / 2
+                                    cy = (y1 + y2) / 2
+                                    from shapely.geometry import Point
+                                    if poly.contains(Polygon([(x1, y1), (x2, y1), (x2, y2), (x1, y2)])) or poly.contains(Point(cx, cy)):
+                                        if zone_name not in zone_violations:
+                                            zone_violations[zone_name] = []
+                                        zone_violations[zone_name].append(det["class"])
+                            if not zone_violations:
+                                logger.info("[GEOFENCE] No geofence events generated for current detections.")
+                            else:
+                                for zone_name, violations in zone_violations.items():
+                                    if alert_manager.can_alert_geofence(zone_name):
+                                        violations_str = ", ".join(violations)
+                                        geofence_msg = f"Zone violation by {worker_id_str}: {violations_str} in '{zone_name}'"
+                                        alert_data = alert_manager.trigger_geofence(zone_name, {"violations": violations, "worker_id": worker_id_str})
+                                        alert_data["message"] = geofence_msg
+                                        logger.info(f"[GEOFENCE] Geofence alert triggered: {alert_data['message']}")
+                                        record_detection(alert_data["message"])
+                                        threading.Thread(
+                                            target=alert_in_background,
+                                            args=(alert_data,),
+                                            daemon=True
+                                        ).start()
+                                    else:
+                                        logger.info(f"[GEOFENCE] Alert for zone '{zone_name}' suppressed by rate limiter or state.")
+                    except Exception as e:
+                        logger.error(f"[GEOFENCE] Exception in geofence processing: {e}\n{traceback.format_exc()}")
 
                 # ===== STREAM FRAME =====
                 _, buffer = cv2.imencode(".jpg", annotated)
