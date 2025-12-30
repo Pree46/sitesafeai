@@ -1,5 +1,8 @@
-import { Camera, Mail } from 'lucide-react';
+import { Mail } from 'lucide-react';
+// 1. Import the Image component for optimized image loading
+import Image from 'next/image'; 
 import { api } from '../services/api';
+import logoImg from '@/assets/logo.png';
 
 export function Header({ isConnected }) {
   const requestReport = async () => {
@@ -20,15 +23,18 @@ export function Header({ isConnected }) {
         <div className="flex items-center justify-between h-16">
           
           {/* LEFT: Branding */}
-          <div className="flex items-center gap-3">
-            <div className="
-              flex items-center justify-center 
-              w-9 h-9 
-              rounded-lg
-              bg-purple-500/10
-              border border-purple-500/20
-            ">
-              <Camera className="text-purple-400 w-5 h-5" />
+          <div className="flex items-center gap-3 flex-shrink-0">
+            
+            {/* 2. Replaced the Camera icon container with an Image component */}
+            <div className="relative w-12 h-12">
+               <Image 
+                 src={logoImg}  // <-- MAKE SURE THIS PATH IS CORRECT
+                 alt="SiteSafeAI Logo"
+                 fill             // This makes the image fill the container
+                 className="object-contain" // Keeps the aspect ratio correct
+                 priority         // Loads the logo quickly
+                
+               />
             </div>
 
             <span className="text-xl font-bold tracking-tight text-white">
@@ -53,7 +59,7 @@ export function Header({ isConnected }) {
             {/* Vertical Divider */}
             <div className="h-6 w-px bg-white/10 mx-1"></div>
 
-            {/* NEW BUTTON STYLE: "Ghost Tech" */}
+            {/* Email Report Button */}
             <button
               onClick={requestReport}
               className="
