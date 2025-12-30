@@ -26,3 +26,8 @@ twilio
 
 # Face recognition dependencies
 
+
+# WebRTC (optional)
+aiortc
+av
+

@@ -3,12 +3,47 @@
 @tailwind components;
 @tailwind utilities;
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* 1. REMOVED the * selector. 
+   Tailwind's "@tailwind base" already handles the reset perfectly. 
+   Adding manual resets here breaks grid/flex layouts.
+*/
+
+/* 2. Fix the White Gap 
+   We apply the color to the 'body' directly. 
+*/
+body {
+  /* This hex code matches your app's background (#050505) */
+  background-color: #050505;
+  
+  /* Sets standard font */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  
+  /* Ensures the background covers the whole screen height */
+  min-height: 100vh;
 }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+/* 3. CUSTOM DARK SCROLLBAR 
+   Overrides browser defaults to make scrollbars blend in 
+*/
+
+/* Width for vertical scrollbars, Height for horizontal ones */
+::-webkit-scrollbar {
+  width: 6px;       
+  height: 6px;      
+}
+
+/* Track (Background) - Make it transparent so it shows the dark app bg */
+::-webkit-scrollbar-track {
+  background: transparent; 
+}
+
+/* Handle (The moving part) */
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1); /* Subtle 10% white */
+  border-radius: 10px;                  /* Pill shape */
+}
+
+/* Handle on hover - Make it slightly brighter */
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2); 
 }

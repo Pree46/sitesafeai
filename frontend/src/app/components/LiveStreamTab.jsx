@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { FileVideo, Shield, ShieldOff, Trash2, Save, X } from 'lucide-react';
+import { FileVideo, Shield, ShieldOff, Trash2, Save, X, RotateCcw, PenTool } from 'lucide-react';
 
 const API_URL = 'http://127.0.0.1:8000';
 
@@ -187,22 +187,60 @@ export function LiveStreamTab({ isStreaming, onStart, onStop }) {
   };
 
   return (
-    <div className="bg-black/40 backdrop-blur-xl rounded-2xl p-6 border border-purple-500/20 shadow-xl space-y-4">
+    <div className="w-full max-w-7xl mx-auto">
       {!isStreaming ? (
-        <button
-          onClick={handleStart}
-          className="bg-purple-600 hover:bg-purple-700 transition px-8 py-4 rounded-xl text-lg flex items-center gap-3"
-        >
-          <FileVideo /> Start Live Detection
-        </button>
+        <div className="flex flex-col items-center justify-center min-h-[400px] bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm p-8 text-center space-y-6">
+          <div className="w-20 h-20 bg-purple-500/10 rounded-full flex items-center justify-center border border-purple-500/20">
+            <FileVideo className="w-10 h-10 text-purple-400" />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-xl font-semibold text-white">Ready to Monitor</h3>
+            <p className="text-gray-400 max-w-md mx-auto">
+              Start the live stream to detect safety violations and manage geofence zones in real-time.
+            </p>
+          </div>
+          <button
+            onClick={handleStart}
+            className="
+              group relative overflow-hidden
+              bg-purple-600 hover:bg-purple-500
+              text-white font-semibold
+              px-8 py-3 rounded-xl
+              transition-all duration-300
+              shadow-[0_0_20px_rgba(147,51,234,0.3)]
+              hover:shadow-[0_0_30px_rgba(147,51,234,0.5)]
+            "
+          >
+            <span className="relative z-10 flex items-center gap-2">
+              <FileVideo size={20} /> Start Live Detection
+            </span>
+          </button>
+        </div>
       ) : (
-        <>
-          <div className="relative bg-black rounded-xl overflow-hidden">
+        <div className="space-y-6">
+          {/* MAIN VIDEO FEED CONTAINER */}
+          <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-black">
+            {/* Header / Status Bar over Video */}
+            <div className="absolute top-4 left-4 z-10 flex gap-2">
+              <div className="px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 flex items-center gap-2 text-xs font-medium text-red-400">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                </span>
+                LIVE FEED
+              </div>
+              {geofenceEnabled && (
+                <div className="px-3 py-1 rounded-full bg-green-900/60 backdrop-blur-md border border-green-500/30 flex items-center gap-2 text-xs font-medium text-green-400">
+                  <Shield size={12} /> GEOFENCE ACTIVE
+                </div>
+              )}
+            </div>
+
             <img
               key={streamKey}
               ref={imgRef}
               src={`${API_URL}/api/stream?ts=${streamKey}`}
-              className="w-full aspect-video object-contain"
+              className="w-full aspect-video object-contain bg-neutral-900"
               alt="Live Stream"
               onLoad={drawOverlay}
             />
@@ -216,101 +254,155 @@ export function LiveStreamTab({ isStreaming, onStart, onStop }) {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={toggleGeofence}
-              className={`${
-                geofenceEnabled
-                  ? 'bg-green-600 hover:bg-green-700'
-                  : 'bg-gray-600 hover:bg-gray-700'
-              } transition py-3 rounded-xl flex items-center justify-center gap-2 font-semibold`}
-            >
-              {geofenceEnabled ? <Shield /> : <ShieldOff />}
-              {geofenceEnabled ? 'Geofence Active' : 'Enable Geofence'}
-            </button>
-
-            <button
-              onClick={onStop}
-              className="bg-red-600 hover:bg-red-700 transition py-3 rounded-xl font-semibold"
-            >
-              Stop Stream
-            </button>
-          </div>
-
-          {/* ZONE PANEL */}
-          <div className="border-t border-purple-500/20 pt-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-purple-300">
-                Geofence Zones {zones.length > 0 && `(${zones.length})`}
-              </h3>
-              {zones.length > 0 && !isDrawing && (
+          {/* CONTROLS GRID */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* LEFT: Stream Controls */}
+            <div className="bg-white/5 border border-white/10 rounded-xl p-5 backdrop-blur-sm space-y-4 h-fit">
+              <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Stream Controls</h3>
+              <div className="grid grid-cols-2 gap-3">
                 <button
-                  onClick={deleteAllZones}
-                  className="text-xs text-red-400 hover:text-red-300 transition flex items-center gap-1"
+                  onClick={toggleGeofence}
+                  className={`
+                    flex flex-col items-center justify-center gap-2 p-4 rounded-lg border transition-all duration-200
+                    ${geofenceEnabled 
+                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20' 
+                      : 'bg-white/5 border-white/5 text-gray-400 hover:border-white/20 hover:text-white'
+                    }
+                  `}
                 >
-                  <Trash2 className="w-3 h-3" /> Clear All
+                  {geofenceEnabled ? <Shield size={24} /> : <ShieldOff size={24} />}
+                  <span className="text-xs font-semibold">{geofenceEnabled ? 'Active' : 'Enable Geofence'}</span>
                 </button>
-              )}
+
+                <button
+                  onClick={onStop}
+                  className="
+                    flex flex-col items-center justify-center gap-2 p-4 rounded-lg
+                    bg-rose-500/10 border border-rose-500/20 text-rose-400
+                    hover:bg-rose-500/20 hover:border-rose-500/40
+                    transition-all duration-200
+                  "
+                >
+                  <div className="w-6 h-6 rounded-md bg-rose-500/20 flex items-center justify-center">
+                    <div className="w-2.5 h-2.5 bg-current rounded-sm" />
+                  </div>
+                  <span className="text-xs font-semibold">Stop Stream</span>
+                </button>
+              </div>
             </div>
 
-            {!isDrawing ? (
-              <button
-                onClick={() => setIsDrawing(true)}
-                className="w-full bg-purple-600 hover:bg-purple-700 transition py-2.5 rounded-lg text-sm font-medium"
-              >
-                + Draw New Zone
-              </button>
-            ) : (
-              <div className="space-y-3 bg-purple-900/20 border border-purple-500/30 rounded-lg p-4">
-                <input
-                  value={zoneName}
-                  onChange={(e) => setZoneName(e.target.value)}
-                  placeholder="Zone Name"
-                  className="w-full bg-black/50 border border-purple-500/30 rounded-lg px-3 py-2 text-sm"
-                />
-
-                <div className="text-xs text-gray-400">
-                  <span className="font-semibold text-yellow-400">
-                    {points.length}
-                  </span>{' '}
-                  points drawn
-                  {points.length < 3 && (
-                    <span className="text-red-400"> (min 3 required)</span>
-                  )}
+            {/* RIGHT: Geofence Editor (Spans 2 cols) */}
+            <div className="lg:col-span-2 bg-white/5 border border-white/10 rounded-xl p-5 backdrop-blur-sm flex flex-col justify-between">
+              
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-purple-500/20 rounded-lg">
+                    <PenTool size={16} className="text-purple-400" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-white">
+                    Zone Editor <span className="text-gray-500 font-normal ml-1">({zones.length} active)</span>
+                  </h3>
                 </div>
-
-                <div className="grid grid-cols-3 gap-2">
+                
+                {zones.length > 0 && !isDrawing && (
                   <button
-                    onClick={saveZone}
-                    disabled={points.length < 3 || !zoneName.trim()}
-                    className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1"
+                    onClick={deleteAllZones}
+                    className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1.5 px-2 py-1 hover:bg-rose-500/10 rounded transition-colors"
                   >
-                    <Save className="w-4 h-4" /> Save
+                    <Trash2 size={12} /> Clear All
                   </button>
-
-                  <button
-                    onClick={clearDrawing}
-                    className="bg-gray-600 hover:bg-gray-700 transition py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1"
-                  >
-                    <X className="w-4 h-4" /> Cancel
-                  </button>
-
-                  <button
-                    onClick={() => setPoints(points.slice(0, -1))}
-                    disabled={points.length === 0}
-                    className="bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition py-2 rounded-lg text-sm font-medium"
-                  >
-                    Undo
-                  </button>
-                </div>
-
-                <p className="text-xs text-gray-400 italic">
-                  💡 Click on the video to add points. Create a polygon by clicking at least 3 points.
-                </p>
+                )}
               </div>
-            )}
+
+              {/* Drawing UI */}
+              {!isDrawing ? (
+                <div className="flex-1 flex items-center justify-center border-2 border-dashed border-white/10 rounded-lg bg-black/20 p-6">
+                  <button
+                    onClick={() => setIsDrawing(true)}
+                    className="
+                      flex items-center gap-2 px-5 py-2.5 
+                      bg-purple-600 text-white rounded-lg 
+                      hover:bg-purple-500 transition-colors shadow-lg shadow-purple-900/20
+                    "
+                  >
+                    <PenTool size={16} /> Draw New Zone
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Instructions */}
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 text-sm">
+                    <span className="mt-0.5">💡</span>
+                    <p>Click points on the video feed to define a polygon. You need at least <strong>3 points</strong> to save.</p>
+                  </div>
+
+                  {/* Input & Actions */}
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="flex-1 relative">
+                      <input
+                        value={zoneName}
+                        onChange={(e) => setZoneName(e.target.value)}
+                        placeholder="Enter Zone Name (e.g., 'Restricted Area')"
+                        className="
+                          w-full h-full min-h-[42px]
+                          bg-black/40 border border-white/10 rounded-lg 
+                          px-4 text-sm text-white placeholder:text-gray-500
+                          focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50
+                        "
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                        {points.length} pts
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={saveZone}
+                        disabled={points.length < 3 || !zoneName.trim()}
+                        className="
+                          h-[42px] px-8 rounded-lg bg-emerald-600 text-white text-sm font-medium
+                          hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed
+                          flex items-center gap-1 transition-colors
+                        "
+                      >
+                        <Save size={16} /> Save
+                      </button>
+
+                      <button
+                        onClick={() => setPoints(points.slice(0, -1))}
+                        disabled={points.length === 0}
+                        className="
+                          h-[42px] w-[42px] flex items-center justify-center rounded-lg 
+                          bg-white/5 border border-white/10 text-gray-300
+                          hover:bg-white/10 hover:text-white disabled:opacity-30
+                          transition-colors
+                        "
+                        title="Undo last point"
+                      >
+                        <RotateCcw size={16} />
+                      </button>
+
+                      <button
+                        onClick={clearDrawing}
+                        className="
+                          h-[42px] w-[42px] flex items-center justify-center rounded-lg 
+                          bg-white/5 border border-white/10 text-gray-300
+                          hover:bg-rose-500/20 hover:border-rose-500/30 hover:text-rose-400
+                          transition-colors
+                        "
+                        title="Cancel"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
