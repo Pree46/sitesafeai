@@ -1,8 +1,11 @@
 # Site Safe AI
 
-## Overview
+<p align="left">
+  <img src="frontend/src/assets/logo.png" alt="Site Safe AI Logo" width="48" style="vertical-align:middle; margin-right:8px;" />
+  <strong>Site Safe AI</strong> – AI-driven PPE and safety monitoring for construction sites
+</p>
 
-Site Safe AI is an AI-driven system designed to enhance safety compliance on construction sites. Using advanced computer vision techniques and deep learning models, the project detects essential safety equipment like helmets and vests, ensuring that workers adhere to safety standards. The solution provides real-time monitoring to reduce risks, prevent accidents, and improve compliance with safety regulations.
+Site Safe AI is an AI-driven system designed to enhance safety compliance on construction sites. Using advanced computer vision techniques and deep learning models, the project detects essential safety equipment like helmets and vests, monitors geofencing zones, and supports face recognition for worker identification. The solution provides real-time monitoring to reduce risks, prevent accidents, and improve compliance with safety regulations.
 
 ## Problem Statement
 
@@ -10,25 +13,32 @@ Construction sites are high-risk environments where failure to use proper safety
 
 ## Solution
 
-Site Safe AI leverages the YOLOv8 (You Only Look Once) model for object detection and OpenVINO for optimization. It processes video footage or images to identify safety equipment and alerts relevant personnel in case of non-compliance. The solution integrates:
+Site Safe AI leverages the YOLOv8 (You Only Look Once) model for object detection, OpenVINO for optimization, and integrates geofencing and face recognition modules. It processes video footage or images to identify safety equipment, monitor worker locations within defined zones, and recognize faces for access control or attendance. The solution integrates:
 
 - **Computer Vision**: To detect and classify workers' safety gear.
-- **Real-Time Inference**: To monitor compliance on-site without manual intervention.
-- **Performance Optimization**: Using IPEX and OpenVINO for maximum efficiency.
-- **Post-Processing Alerts**: Notifications via email or SMS when safety violations are detected.
+- **Geofencing**: To monitor and enforce virtual boundaries for restricted or hazardous areas on-site.
+- **Face Recognition**: For worker identification, attendance, and access control.
+- **Real-Time Inference**: To monitor compliance and zone breaches on-site without manual intervention.
+- **Performance Optimization**: Using Intel Extension for PyTorch (IPEX) and OpenVINO for maximum efficiency.
+- **Post-Processing Alerts**: Notifications via email or SMS when safety violations or geofence breaches are detected.
 
 ## Features
 
 - Real-time detection of safety equipment (helmets, vests, etc.).
+- Geofencing: Define and monitor virtual zones to restrict or track worker movement.
+- Face recognition: Identify workers for access control, attendance, or personalized alerts.
 - Optimized inference using Intel OpenVINO for faster processing.
 - Enhanced PyTorch performance with Intel IPEX optimization.
-- Optimized inference using Intel OpenVINO and IPEX or faster processing. 
-- Alerts for safety violations via email or SMS.
+- Alerts for safety violations, geofence breaches, or unauthorized access via email or SMS.
 - Scalable architecture for deployment on edge devices or cloud platforms.
+
+## Geofencing & Face Recognition
+
+Geofencing and face recognition are included for zone monitoring and worker identification. See `app/geofence/` and `app/services/face_recognition/` for details.
 
 ## Dataset
 
-The dataset is sourced from Kaggle: [Construction Site Safety Dataset](https://www.kaggle.com/datasets/snehilsanyal/construction-site-safety-image-dataset-roboflow)
+The dataset is sourced from Kaggle: [Construction Site Safety Dataset](https://www.kaggle.com/datasets/snehilsanyal/construction-site-safety-image-dataset-roboflow).
 
 ## Technologies Used
 
@@ -39,54 +49,19 @@ The dataset is sourced from Kaggle: [Construction Site Safety Dataset](https://w
 
 - **Programming Languages**:
   - Python
+
 - **Tools and Platforms**:
   - Kaggle for model training and experimentation.
   - OpenVINO Toolkit: For optimizing the YOLOv8 model, enhancing inference performance on Intel hardware.
-   - Intel IPEX: For accelerating PyTorch workloads on Intel hardware.
+  - Intel IPEX: For accelerating PyTorch workloads on Intel hardware.
 
-## How to use
+- **Frontend**:
+  - Next.js (see `frontend/`), with the logo located at `frontend/src/assets/logo.png` and used in the main layout/header.
 
-1. **Clone the repository**:
+## Getting Started
 
-   ```bash
-   git clone https://github.com/Pree46/sitesafeai.git
-   ```
+### 1. Clone the repository
 
-2. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. **Train the model**:
-- Use the `./sitesafeai.ipynb` notebook to train the model on the provided dataset.
-4. **Optimize the model**:
-- Convert the trained model using OpenVINO(`./OpenVino Optimization.ipynb`) for faster inference.
-- Apply IPEX Optimization (`./IPEX Optimization.ipynb`)
-- Use the `./sitesafeai.ipynb` (YOLOv8 notebook) to train the model on the provided dataset.
-- Add your email id to get generate reports in `./app.py`.
-
-4. **Optimize the model**:
-
-- Convert the trained model using OpenVINO (`./OpenVino Optimization.ipynb`) for faster inference.
-- To optimize Yolov8 using IPEX(`./IPEX Optimization.ipynb`) 
-
-5. **Run the application**:
-   ```bash
-   python app.py
-   ```
-
-## Demo
-
-[Watch the Demo Video](https://drive.google.com/file/d/1311zScdP6FhMhBqcy5lCJLJ8fiYMlEFk/view?usp=sharing)
-
-<p align="center">
-  <img src="./data/demo.jpg" alt="Immediate SMS Alerts" width="400" height="700" />
-</p>
-
-## Acknowledgements
-
-- Kaggle for providing the Construction Site Safety Dataset.
-- Intel OpenVINO for optimization tools.
-- Intel IPEX for PyTorch optimization support. 
-- YOLOv8 for object detection.
-
-
+```bash
+git clone https://github.com/Pree46/sitesafeai.git
+cd sitesafeai
