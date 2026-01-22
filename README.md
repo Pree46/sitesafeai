@@ -1,9 +1,10 @@
-# Site Safe AI
 
-<p align="left">
-  <img src="frontend/src/assets/logo_without_bg.png" alt="Site Safe AI Logo" width="48" style="vertical-align:middle; margin-right:8px;" />
-  <strong>Site Safe AI</strong> – AI-driven PPE and safety monitoring for construction sites
+<p align="center">
+  <img src="frontend/src/assets/logo_bg.png" alt="Site Safe AI Logo" width="48" style="vertical-align:middle; margin-right:8px;" />
+  <strong>Site Safe AI</strong> – Your Site's Third Eye
 </p>
+
+# SiteSafe AI
 
 Site Safe AI is an AI-driven system designed to enhance safety compliance on construction sites. Using advanced computer vision techniques and deep learning models, the project detects essential safety equipment like helmets and vests, monitors geofencing zones, and supports face recognition for worker identification. The solution provides real-time monitoring to reduce risks, prevent accidents, and improve compliance with safety regulations.
 
