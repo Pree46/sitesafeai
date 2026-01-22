@@ -1,7 +1,7 @@
 # Site Safe AI
 
 <p align="left">
-  <img src="frontend/src/assets/logo.png" alt="Site Safe AI Logo" width="48" style="vertical-align:middle; margin-right:8px;" />
+  <img src="frontend/src/assets/logo_without_bg" alt="Site Safe AI Logo" width="48" style="vertical-align:middle; margin-right:8px;" />
   <strong>Site Safe AI</strong> – AI-driven PPE and safety monitoring for construction sites
 </p>
 
