@@ -76,7 +76,7 @@ def infer_openvino(frame):
 
     result = compiled_model([inp])
     output = result[compiled_model.outputs[0]]
-    print("OpenVINO output shape:", output.shape)
+    
 
     # return all heads
     return output, scale, pad_x, pad_y

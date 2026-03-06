@@ -1,4 +1,7 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+
 
 from .core.settings import setup_app
 from .api.stream import router as stream_router
@@ -13,6 +16,15 @@ app = FastAPI()
 
 setup_app(app)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    
+)
+
 app.include_router(stream_router)
 app.include_router(upload_router)
 app.include_router(report_router)
@@ -21,6 +33,7 @@ app.include_router(geofence_router)
 app.include_router(video_ws_router)
 app.include_router(video_webrtc_router)
 app.include_router(video_ws_router)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 
 
