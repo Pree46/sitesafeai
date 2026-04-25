@@ -214,13 +214,9 @@ def try_face_recognition(frame):
 
     LAST_FACE_TS = now
 
-    h, w, _ = frame.shape
-    crop = frame[int(h * 0.15):int(h * 0.85), int(w * 0.25):int(w * 0.75)]
-    if crop.size == 0:
-        return LAST_WORKER_ID
-
-    crop = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
-    worker_id = recognize_worker(crop)
+    # Provide the FULL frame to InsightFace so it doesn't arbitrarily crop off users
+    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    worker_id = recognize_worker(rgb_frame)
     LAST_WORKER_ID = worker_id
     return worker_id
 

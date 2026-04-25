@@ -54,22 +54,21 @@ export function LiveStreamTab({ isStreaming, onStart, onStop }) {
       // Attach image element to api service so startStream/stopStream can manage it
       api.attachStreamElement(imgRef.current);
       
-      // Explicitly set the stream source
-      imgRef.current.src = `${API_URL}/api/stream?ts=${Date.now()}`;
-      
-      const interval = setInterval(drawOverlay, 100);
-      return () => {
-        clearInterval(interval);
-      };
+      // Explicitly set the stream source if not set
+      if (!imgRef.current.src || imgRef.current.src === '') {
+          imgRef.current.src = `${API_URL}/api/stream?ts=${Date.now()}`;
+      }
     }
   }, [isStreaming]);
 
-  // Redraw when zones or points change
+  // Redraw when zones or points change, and maintain overlay during MJPEG stream
   useEffect(() => {
     if (isStreaming) {
       drawOverlay();
+      const interval = setInterval(drawOverlay, 100);
+      return () => clearInterval(interval);
     }
-  }, [points, zones, geofenceEnabled]);
+  }, [isStreaming, points, zones, geofenceEnabled]);
 
   const handleStart = async () => {
     await onStart();
@@ -261,7 +260,9 @@ export function LiveStreamTab({ isStreaming, onStart, onStop }) {
                 // Retry stream if connection is lost
                 if (isStreaming && imgRef.current) {
                   setTimeout(() => {
-                    imgRef.current.src = `${API_URL}/api/stream?ts=${Date.now()}`;
+                    if (imgRef.current) {
+                      imgRef.current.src = `${API_URL}/api/stream?ts=${Date.now()}`;
+                    }
                   }, 1000);
                 }
               }}

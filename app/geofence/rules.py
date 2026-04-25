@@ -3,7 +3,7 @@ Geofence rules - defines which objects trigger alerts in which zones
 """
 
 # Default: Alert for all person detections
-RESTRICTED_CLASSES = ["person"]
+RESTRICTED_CLASSES = ["person", "Person"]
 
 
 def rule_matches(zone_name, object_class):
