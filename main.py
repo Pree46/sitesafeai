@@ -56,8 +56,8 @@ ALERT_COOLDOWN_SECONDS = 15
 last_alert_time = 0
 
 # ================== MODEL ==================
-logger.info("Loading YOLO model...")
-model = YOLO("best.pt")
+logger.info("Loading YOLO model (INT8 quantized)...")
+model = YOLO("best_int8_model/best.xml")
 model.conf = 0.25
 model.iou = 0.45
 logger.info("YOLO model loaded")

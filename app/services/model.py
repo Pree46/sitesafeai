@@ -2,8 +2,11 @@ import cv2
 import numpy as np
 import logging
 from openvino import Core
+import threading
 
 logger = logging.getLogger("sitesafeai")
+
+infer_lock = threading.Lock()
 
 # ================= CLASS NAMES =================
 CLASS_NAMES = [
@@ -74,8 +77,9 @@ def infer_openvino(frame):
     inp = img_lb.transpose(2, 0, 1)
     inp = np.expand_dims(inp, axis=0).astype(np.float32) / 255.0
 
-    result = compiled_model([inp])
-    output = result[compiled_model.outputs[0]]
+    with infer_lock:
+        result = compiled_model([inp])
+        output = result[compiled_model.outputs[0]]
     
 
     # return all heads

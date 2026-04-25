@@ -5,6 +5,7 @@ import logging
 import asyncio
 import threading
 import numpy as np
+import concurrent.futures
 
 from . import camera
 from .model import infer_openvino, CLASS_NAMES
@@ -13,10 +14,10 @@ from ..utils.helpers import extract_violations, record_detection
 from .alerts import state, alert_manager
 from ..core.websocket import broadcast_alert
 from ..geofence.engine import GeofenceEngine
-from ..geofence.zones import Zone
-from shapely.geometry import Polygon
 
 from app.services.face_recognition.recognize import recognize_worker
+
+geofence_engine = GeofenceEngine(ioa_threshold=0.3)
 
 logger = logging.getLogger("sitesafeai")
 
@@ -36,6 +37,11 @@ BOX_TTL = 0.6  # seconds (YOLO-like)
 # ================= INFERENCE RATE LIMIT =================
 LAST_INFER_TS = 0
 INFER_INTERVAL = 0.06  # ~16 FPS (prevents Infer Request busy)
+
+# ================= BACKGROUND EXECUTOR =================
+executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+ai_future = None
+LATEST_DETECTIONS = []
 
 
 # ================= ALERT THREAD =================
@@ -219,14 +225,89 @@ def try_face_recognition(frame):
     return worker_id
 
 
+# ================= TEST PATTERN GENERATOR =================
+def generate_test_pattern(width=640, height=480):
+    """Generate a simple test pattern frame when no camera is available"""
+    frame = np.ones((height, width, 3), dtype=np.uint8) * 30  # Dark gray
+    
+    # Add grid
+    for i in range(0, width, 50):
+        cv2.line(frame, (i, 0), (i, height), (100, 100, 100), 1)
+    for i in range(0, height, 50):
+        cv2.line(frame, (0, i), (width, i), (100, 100, 100), 1)
+    
+    # Add text
+    cv2.putText(frame, "TEST PATTERN MODE", (width//2 - 150, height//2 - 50), 
+                cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 255), 2)
+    cv2.putText(frame, "No camera connected", (width//2 - 130, height//2 + 20), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (100, 200, 255), 2)
+    cv2.putText(frame, "Connect webcam or place demo.mp4 in project root", 
+                (width//2 - 250, height//2 + 70), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (150, 150, 255), 1)
+    
+    return frame
+
+
+# ================= BACKGROUND AI TASK =================
+def run_ai_task(frame):
+    worker_id = try_face_recognition(frame)
+    output, scale, pad_x, pad_y = infer_openvino(frame)
+    
+    detections = decode_yolov8_flat(
+        output=output,
+        frame_shape=frame.shape,
+        scale=scale,
+        pad_x=pad_x,
+        pad_y=pad_y,
+        conf_thresh=0.25,
+        iou_thresh=0.5,
+    )
+    
+    # ===== PPE VIOLATIONS =====
+    violations = extract_violations(detections)
+    if violations and alert_manager.can_alert():
+        msg = f"PPE violation by {worker_id}: " + ", ".join(violations)
+        alert_data = alert_manager.trigger(msg)
+        record_detection(msg)
+        threading.Thread(target=alert_in_background, args=(alert_data,), daemon=True).start()
+
+    # ===== GEOFENCE =====
+    if state.get("geofence_enabled") and state.get("zones"):
+        try:
+            violations_dict = geofence_engine.process(detections, frame.shape, state["zones"])
+            if violations_dict:
+                for zone_name, violation_classes in violations_dict.items():
+                    if alert_manager.can_alert_geofence(zone_name):
+                        violations_str = ", ".join(violation_classes)
+                        geofence_msg = f"Zone violation by {worker_id}: {violations_str} in '{zone_name}'"
+                        alert_data = alert_manager.trigger_geofence(zone_name, {"violations": violation_classes, "worker_id": worker_id})
+                        alert_data["message"] = geofence_msg
+                        logger.info(f"[GEOFENCE] Alert: {alert_data['message']}")
+                        record_detection(alert_data["message"])
+                        threading.Thread(target=alert_in_background, args=(alert_data,), daemon=True).start()
+        except Exception as e:
+            logger.error(f"[GEOFENCE] Exception in geofence processing: {e}\n{traceback.format_exc()}")
+            
+    return detections
+
 # ================= MAIN STREAM =================
+FPS_LIMIT = 1.0 / 30.0  # 30 FPS Lock
+
 def generate_frames():
-    global LAST_INFER_TS
+    global ai_future, LATEST_DETECTIONS
+    last_frame_ts = 0
 
     logger.info("Stream generator started")
 
     try:
+        test_pattern_counter = 0
+        
         while True:
+            # 🕰️ STREAM FPS LIMITER to prevent GIL starvation!
+            now = time.time()
+            if now - last_frame_ts < FPS_LIMIT:
+                time.sleep(0.01)
+                continue
+            last_frame_ts = now
 
             # 🔴 STOP = CLOSE MJPEG CONNECTION
             if not state.get("streaming_active"):
@@ -239,113 +320,31 @@ def generate_frames():
                 continue
 
             success, frame = camera.cap.read()
+            
+            # If frame read failed but we're in demo mode, generate test pattern
             if not success:
-                time.sleep(0.03)
-                continue
-
-            try:
-                # ===== FACE (lightweight) =====
-                worker_id = try_face_recognition(frame)
-
-                # ===== INFERENCE RATE LIMIT =====
-                now = time.time()
-                if now - LAST_INFER_TS < INFER_INTERVAL:
-                    time.sleep(0.005)
+                if camera.DEMO_MODE:
+                    frame = generate_test_pattern(640, 480)
+                    test_pattern_counter += 1
+                else:
+                    time.sleep(0.03)
                     continue
 
-                LAST_INFER_TS = now
-
-                # ===== OPENVINO INFERENCE =====
-                output, scale, pad_x, pad_y = infer_openvino(frame)
-
-                detections = decode_yolov8_flat(
-                    output=output,
-                    frame_shape=frame.shape,
-                    scale=scale,
-                    pad_x=pad_x,
-                    pad_y=pad_y,
-                    conf_thresh=0.25,
-                    iou_thresh=0.5,
-                )
-
-                # ===== DRAW BOXES =====
-                annotated = draw_detections(frame.copy(), detections)
-
-                # ===== PPE VIOLATIONS =====
-                violations = extract_violations(detections)
-                if violations and alert_manager.can_alert():
-                    msg = f"PPE violation by {worker_id}: " + ", ".join(violations)
-                    alert_data = alert_manager.trigger(msg)
-                    record_detection(msg)
-
-                    threading.Thread(
-                        target=alert_in_background,
-                        args=(alert_data,),
-                        daemon=True
-                    ).start()
-
-                # ===== GEOFENCE =====
-                if state.get("geofence_enabled") and state.get("zones"):
-                    logger.info(f"[GEOFENCE] Geofence enabled. Zones count: {len(state['zones'])}")
-                    try:
-                        zones = []
-                        for z in state["zones"]:
-                            if not z.get("points") or len(z["points"]) < 3:
-                                logger.warning(f"[GEOFENCE] Zone '{z.get('name', 'unnamed')}' has invalid or missing points: {z.get('points')}")
-                                continue
-                            try:
-                                poly = Polygon(z["points"])
-                                if not poly.is_valid:
-                                    logger.warning(f"[GEOFENCE] Zone '{z.get('name', 'unnamed')}' polygon is invalid: {z['points']}")
-                                    continue
-                                zones.append(Zone(
-                                    name=z["name"],
-                                    polygon=poly,
-                                    color=tuple(z.get("color", [255, 0, 0])),
-                                    alpha=z.get("alpha", 0.3)
-                                ))
-                            except Exception as e:
-                                logger.error(f"[GEOFENCE] Error creating polygon for zone '{z.get('name', 'unnamed')}': {e}")
-                        logger.info(f"[GEOFENCE] Valid zones after parsing: {len(zones)}")
-                        if not zones:
-                            logger.warning("[GEOFENCE] No valid geofence zones available, skipping geofence processing.")
-                        else:
-                            # Robust: For each zone, check all detections for violations inside that zone
-                            worker_id_str = worker_id if 'worker_id' in locals() else 'UNKNOWN'
-                            zone_violations = {}
-                            for zone in zones:
-                                zone_name = zone.name
-                                poly = zone.polygon
-                                for det in detections:
-                                    # Get bbox center
-                                    x1, y1, x2, y2 = det["bbox"]
-                                    cx = (x1 + x2) / 2
-                                    cy = (y1 + y2) / 2
-                                    from shapely.geometry import Point
-                                    if poly.contains(Polygon([(x1, y1), (x2, y1), (x2, y2), (x1, y2)])) or poly.contains(Point(cx, cy)):
-                                        if zone_name not in zone_violations:
-                                            zone_violations[zone_name] = []
-                                        zone_violations[zone_name].append(det["class"])
-                            if not zone_violations:
-                                logger.info("[GEOFENCE] No geofence events generated for current detections.")
-                            else:
-                                for zone_name, violations in zone_violations.items():
-                                    if alert_manager.can_alert_geofence(zone_name):
-                                        violations_str = ", ".join(violations)
-                                        geofence_msg = f"Zone violation by {worker_id_str}: {violations_str} in '{zone_name}'"
-                                        alert_data = alert_manager.trigger_geofence(zone_name, {"violations": violations, "worker_id": worker_id_str})
-                                        alert_data["message"] = geofence_msg
-                                        logger.info(f"[GEOFENCE] Geofence alert triggered: {alert_data['message']}")
-                                        record_detection(alert_data["message"])
-                                        threading.Thread(
-                                            target=alert_in_background,
-                                            args=(alert_data,),
-                                            daemon=True
-                                        ).start()
-                                    else:
-                                        logger.info(f"[GEOFENCE] Alert for zone '{zone_name}' suppressed by rate limiter or state.")
-                    except Exception as e:
-                        logger.error(f"[GEOFENCE] Exception in geofence processing: {e}\n{traceback.format_exc()}")
+            try:
+                # Dispatch background computation seamlessly
+                if ai_future is None or ai_future.done():
+                    if ai_future is not None:
+                        try:
+                            LATEST_DETECTIONS = ai_future.result()
+                        except Exception as e:
+                            logger.error(f"AI Worker crashed: {e}")
+                    
+                    # Submit next frame instantly
+                    ai_future = executor.submit(run_ai_task, frame.copy())
+                
+                # Instantly draw and push using independent Latest State
+                # NOTE: Zone overlays are rendered by the frontend canvas, not here.
+                annotated = draw_detections(frame.copy(), LATEST_DETECTIONS)
 
                 # ===== STREAM FRAME =====
                 _, buffer = cv2.imencode(".jpg", annotated)
@@ -356,8 +355,19 @@ def generate_frames():
                     + b"\r\n"
                 )
 
-            except Exception:
-                logger.error(traceback.format_exc())
+            except Exception as e:
+                logger.error(f"Frame processing error: {e}\n{traceback.format_exc()}")
+                # Still yield a frame so stream doesn't break
+                try:
+                    _, buffer = cv2.imencode(".jpg", frame)
+                    yield (
+                        b"--frame\r\n"
+                        b"Content-Type: image/jpeg\r\n\r\n"
+                        + buffer.tobytes()
+                        + b"\r\n"
+                    )
+                except:
+                    pass
 
     except GeneratorExit:
         logger.info("Stream closed by client")

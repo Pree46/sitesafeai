@@ -2,7 +2,8 @@
  * Application configuration constants
  */
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || `http://${hostname}:8000`;
 export const WS_URL = API_URL.replace('http', 'ws') + '/ws/alerts';
 
 export const TABS = {

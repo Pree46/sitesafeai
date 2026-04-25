@@ -77,7 +77,7 @@ export default function DashboardPage() {
             setLastUpdated(new Date());
         } catch (err) {
             console.error('Failed to fetch dashboard data:', err);
-            setError('Failed to connect to the dashboard API. Make sure the backend is running on port 8001.');
+            setError('Failed to connect to the dashboard API. Make sure the backend is running on port 8000.');
         } finally {
             setLoading(false);
         }

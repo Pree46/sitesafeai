@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { FileVideo, Shield, ShieldOff, Trash2, Save, X, RotateCcw, PenTool } from 'lucide-react';
+import { api } from '../services/api';
+import { API_URL } from '../constants/config';
 
-const API_URL = 'http://127.0.0.1:8000';
-
-const api = {
+const geofenceApi = {
   enableGeofence: async () => {
     const res = await fetch(`${API_URL}/api/geofence/enable`, { method: 'POST' });
     return await res.json();
@@ -38,9 +38,6 @@ export function LiveStreamTab({ isStreaming, onStart, onStop }) {
   const imgRef = useRef(null);
   const canvasRef = useRef(null);
 
-  // 🔑 MJPEG reconnect fix
-  const [streamKey, setStreamKey] = useState(Date.now());
-
   const [geofenceEnabled, setGeofenceEnabled] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
   const [points, setPoints] = useState([]);
@@ -53,33 +50,47 @@ export function LiveStreamTab({ isStreaming, onStart, onStop }) {
   }, []);
 
   useEffect(() => {
-    if (isStreaming) {
+    if (isStreaming && imgRef.current) {
+      // Attach image element to api service so startStream/stopStream can manage it
+      api.attachStreamElement(imgRef.current);
+      
+      // Explicitly set the stream source
+      imgRef.current.src = `${API_URL}/api/stream?ts=${Date.now()}`;
+      
       const interval = setInterval(drawOverlay, 100);
-      return () => clearInterval(interval);
+      return () => {
+        clearInterval(interval);
+      };
     }
-  }, [points, zones, isStreaming]);
+  }, [isStreaming]);
+
+  // Redraw when zones or points change
+  useEffect(() => {
+    if (isStreaming) {
+      drawOverlay();
+    }
+  }, [points, zones, geofenceEnabled]);
 
   const handleStart = async () => {
     await onStart();
-    setStreamKey(Date.now());
   };
 
   const loadZones = async () => {
-    const data = await api.getZones();
+    const data = await geofenceApi.getZones();
     setZones(data.zones || []);
   };
 
   const checkGeofenceStatus = async () => {
-    const data = await api.getGeofenceStatus();
+    const data = await geofenceApi.getGeofenceStatus();
     setGeofenceEnabled(data.enabled);
   };
 
   const toggleGeofence = async () => {
     if (geofenceEnabled) {
-      await api.disableGeofence();
+      await geofenceApi.disableGeofence();
       setGeofenceEnabled(false);
     } else {
-      await api.enableGeofence();
+      await geofenceApi.enableGeofence();
       setGeofenceEnabled(true);
     }
   };
@@ -109,33 +120,38 @@ export function LiveStreamTab({ isStreaming, onStart, onStop }) {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    zones.forEach(zone => {
-      if (zone.points?.length > 2) {
-        ctx.beginPath();
-        ctx.moveTo(zone.points[0][0], zone.points[0][1]);
-        zone.points.forEach(([x, y]) => ctx.lineTo(x, y));
-        ctx.closePath();
+    // ── Only draw saved zones when geofence is enabled ──
+    if (geofenceEnabled) {
+      zones.forEach(zone => {
+        if (zone.points?.length > 2) {
+          ctx.beginPath();
+          ctx.moveTo(zone.points[0][0], zone.points[0][1]);
+          zone.points.forEach(([x, y]) => ctx.lineTo(x, y));
+          ctx.closePath();
 
-        const [r, g, b] = zone.color || [255, 0, 0];
-        ctx.fillStyle = `rgba(${r},${g},${b},${zone.alpha || 0.3})`;
-        ctx.fill();
-        ctx.strokeStyle = `rgb(${r},${g},${b})`;
-        ctx.lineWidth = 3;
-        ctx.stroke();
+          const [r, g, b] = zone.color || [255, 0, 0];
+          ctx.fillStyle = `rgba(${r},${g},${b},${zone.alpha || 0.2})`;
+          ctx.fill();
+          ctx.strokeStyle = `rgb(${r},${g},${b})`;
+          ctx.lineWidth = 2;
+          ctx.stroke();
 
-        const text = zone.name;
-        ctx.font = 'bold 16px sans-serif';
-        const metrics = ctx.measureText(text);
-        const tx = zone.points[0][0];
-        const ty = zone.points[0][1] - 10;
+          // Zone name label
+          const text = zone.name;
+          ctx.font = 'bold 14px sans-serif';
+          const metrics = ctx.measureText(text);
+          // Centroid
+          const cx = zone.points.reduce((s, p) => s + p[0], 0) / zone.points.length;
+          const cy = zone.points.reduce((s, p) => s + p[1], 0) / zone.points.length;
+          ctx.fillStyle = 'rgba(0,0,0,0.65)';
+          ctx.fillRect(cx - metrics.width / 2 - 6, cy - 18, metrics.width + 12, 24);
+          ctx.fillStyle = `rgb(${r},${g},${b})`;
+          ctx.fillText(text, cx - metrics.width / 2, cy);
+        }
+      });
+    }
 
-        ctx.fillStyle = 'rgba(0,0,0,0.7)';
-        ctx.fillRect(tx - 5, ty - 20, metrics.width + 10, 25);
-        ctx.fillStyle = 'white';
-        ctx.fillText(text, tx, ty);
-      }
-    });
-
+    // ── Always draw the in-progress polygon while user is drawing ──
     if (points.length > 0) {
       ctx.beginPath();
       ctx.moveTo(points[0][0], points[0][1]);
@@ -151,7 +167,7 @@ export function LiveStreamTab({ isStreaming, onStart, onStop }) {
 
       if (points.length > 2) ctx.closePath();
       ctx.strokeStyle = 'yellow';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 2;
       ctx.setLineDash([5, 5]);
       ctx.stroke();
       ctx.setLineDash([]);
@@ -161,7 +177,7 @@ export function LiveStreamTab({ isStreaming, onStart, onStop }) {
   const saveZone = async () => {
     if (points.length < 3 || !zoneName.trim()) return;
 
-    await api.saveZone({
+    await geofenceApi.saveZone({
       name: zoneName,
       points,
       color: [255, 0, 0],
@@ -182,7 +198,7 @@ export function LiveStreamTab({ isStreaming, onStart, onStop }) {
 
   const deleteAllZones = async () => {
     if (!confirm('⚠️ Delete all zones?')) return;
-    await api.clearAllZones();
+    await geofenceApi.clearAllZones();
     await loadZones();
   };
 
@@ -237,12 +253,18 @@ export function LiveStreamTab({ isStreaming, onStart, onStop }) {
             </div>
 
             <img
-              key={streamKey}
               ref={imgRef}
-              src={`${API_URL}/api/stream?ts=${streamKey}`}
               className="w-full aspect-video object-contain bg-neutral-900"
               alt="Live Stream"
               onLoad={drawOverlay}
+              onError={() => {
+                // Retry stream if connection is lost
+                if (isStreaming && imgRef.current) {
+                  setTimeout(() => {
+                    imgRef.current.src = `${API_URL}/api/stream?ts=${Date.now()}`;
+                  }, 1000);
+                }
+              }}
             />
             <canvas
               ref={canvasRef}
