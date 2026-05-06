@@ -22,10 +22,10 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 export function DailyViolationsChart({ data = [] }) {
     const chartData = data.map(d => ({
-        date: d.date?.slice(5) || '', // MM-DD
-        Minor: d.grade_1,
-        Medium: d.grade_2,
-        Critical: d.grade_3,
+        date: d.name,
+        Minor: d.Minor,
+        Medium: d.Medium,
+        Critical: d.Critical,
     }));
 
     return (

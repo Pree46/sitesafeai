@@ -36,7 +36,6 @@ export function WorkerTable({ data = [], onSearch }) {
                         <tr className="border-b border-white/[0.06]">
                             <th className="text-left py-3 px-2 text-white/30 font-medium text-xs uppercase">ID</th>
                             <th className="text-left py-3 px-2 text-white/30 font-medium text-xs uppercase">Name</th>
-                            <th className="text-left py-3 px-2 text-white/30 font-medium text-xs uppercase">Role</th>
                             <th className="text-left py-3 px-2 text-white/30 font-medium text-xs uppercase">Violations</th>
                             <th className="text-left py-3 px-2 text-white/30 font-medium text-xs uppercase">Most Common</th>
                             <th className="text-left py-3 px-2 text-white/30 font-medium text-xs uppercase">Status</th>
@@ -47,15 +46,16 @@ export function WorkerTable({ data = [], onSearch }) {
                             <tr key={w.id} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
                                 <td className="py-3 px-2 text-white/40 font-mono text-xs">#{w.id}</td>
                                 <td className="py-3 px-2 text-white/80 font-medium">{w.name}</td>
-                                <td className="py-3 px-2 text-white/50 text-xs">{w.role}</td>
                                 <td className="py-3 px-2">
-                                    <span className={`font-semibold ${w.violation_count > 10 ? 'text-red-400' : w.violation_count > 5 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                                        {w.violation_count}
+                                    <span className={`font-semibold ${w.violations > 10 ? 'text-red-400' : w.violations > 5 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                        {w.violations}
                                     </span>
                                 </td>
-                                <td className="py-3 px-2 text-white/50 text-xs">{w.most_common_violation || '—'}</td>
+                                <td className="py-3 px-2 text-white/50 text-xs">{w.most_common || '—'}</td>
                                 <td className="py-3 px-2">
-                                    <span className={`w-2 h-2 rounded-full inline-block ${w.is_active ? 'bg-emerald-400 shadow-[0_0_6px_rgba(34,197,94,0.5)]' : 'bg-white/20'}`} />
+                                    <span className={"px-2 py-1 rounded-full text-xs bg-red-500/10 text-red-400"}>
+                                        ACTIVE
+                                    </span>
                                 </td>
                             </tr>
                         ))}

@@ -39,3 +39,7 @@ archive/
 
 #Zone file
 zones.json
+# ======================
+# Dashboard data 
+# ======================
+database/sitesafe.db

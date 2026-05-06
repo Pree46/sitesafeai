@@ -18,9 +18,9 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 export function ZoneViolationsChart({ data = [] }) {
     const chartData = data.map(d => ({
-        name: d.name?.replace('Zone ', '').substring(0, 14),
-        violations: d.violations_total,
-        fill: d.risk_level === 'high' ? '#ef4444' : d.risk_level === 'medium' ? '#eab308' : '#22c55e',
+        name: d.name,
+        violations: d.value,
+        fill: '#ef4444',
     }));
 
     return (

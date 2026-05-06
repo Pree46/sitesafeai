@@ -24,36 +24,36 @@ export function ZoneTable({ data = [] }) {
                     <thead>
                         <tr className="border-b border-white/[0.06]">
                             <th className="text-left py-3 px-2 text-white/30 font-medium text-xs uppercase">Zone</th>
-                            <th className="text-left py-3 px-2 text-white/30 font-medium text-xs uppercase">Type</th>
-                            <th className="text-left py-3 px-2 text-white/30 font-medium text-xs uppercase">Today</th>
-                            <th className="text-left py-3 px-2 text-white/30 font-medium text-xs uppercase">Risk</th>
+                            <th className="text-left py-3 px-2 text-white/30 font-medium text-xs uppercase">Violations</th>
+                            <th className="text-left py-3 px-2 text-white/30 font-medium text-xs uppercase">Status</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {data.map((zone) => {
-                            const risk = RISK_COLORS[zone.risk_level] || RISK_COLORS.low;
-                            const type = TYPE_BADGES[zone.zone_type] || TYPE_BADGES.safe;
-                            return (
-                                <tr key={zone.id} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
-                                    <td className="py-3 px-2 text-white/80 font-medium">{zone.name}</td>
-                                    <td className="py-3 px-2">
-                                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${type.bg} ${type.text}`}>
-                                            {zone.zone_type}
-                                        </span>
-                                    </td>
-                                    <td className="py-3 px-2">
-                                        <span className={`font-semibold ${zone.violations_today > 3 ? 'text-red-400' : zone.violations_today > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                                            {zone.violations_today}
-                                        </span>
-                                    </td>
-                                    <td className="py-3 px-2">
-                                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${risk.bg} ${risk.text} ${risk.border}`}>
-                                            {zone.risk_level}
-                                        </span>
-                                    </td>
-                                </tr>
-                            );
-                        })}
+                        {data.map((zone, i) => (
+                            <tr
+                                key={i}
+                                className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors"
+                            >
+                                <td className="py-3 px-2 text-white/80 font-medium">
+                                    {zone.name}
+                                </td>
+
+                                <td className="py-3 px-2">
+                                    <span className="text-red-400 font-semibold">
+                                        {zone.violations}
+                                    </span>
+                                </td>
+
+                                <td className="py-3 px-2">
+                                    <span className="
+                                        px-2 py-1 rounded-full text-xs
+                                        bg-red-500/10 text-red-400
+                                    ">
+                                        ACTIVE
+                                    </span>
+                                </td>
+                            </tr>
+                        ))}
                     </tbody>
                 </table>
             </div>

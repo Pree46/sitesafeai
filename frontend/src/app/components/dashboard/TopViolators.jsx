@@ -26,11 +26,11 @@ export function TopViolators({ data = [] }) {
                             {i + 1}
                         </div>
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-white/80 truncate">{w.name}</p>
-                            <p className="text-xs text-white/30">{w.role}</p>
+                            <p className="text-sm font-medium text-white/80 truncate">{w.worker_id}</p>
+                            <p className="text-xs text-white/30">Real-time monitoring</p>
                         </div>
                         <div className="text-right">
-                            <span className="text-lg font-bold text-red-400">{w.violation_count}</span>
+                            <span className="text-lg font-bold text-red-400">{w.violations}</span>
                             <p className="text-[10px] text-white/20">violations</p>
                         </div>
                     </div>

@@ -72,7 +72,7 @@ async def upload_image(file: UploadFile = File(...)):
 
         return {
             "violations": violations,
-            "annotated_image": f"/serve-video/uploads/{out_name}"
+            "annotated_image": f"/serve-video/{out_name}"
         }
 
     except Exception:

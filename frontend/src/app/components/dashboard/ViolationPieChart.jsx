@@ -22,8 +22,8 @@ const CustomTooltip = ({ active, payload }) => {
 
 export function ViolationPieChart({ data = [] }) {
     const chartData = data.map(d => ({
-        name: d.label,
-        value: d.count,
+        name: d.name,
+        value: d.value,
         color: d.color,
     }));
 

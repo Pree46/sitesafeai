@@ -18,7 +18,6 @@ import { ZoneTable } from './dashboard/ZoneTable';
 import { WorkerTable } from './dashboard/WorkerTable';
 import { TopViolators } from './dashboard/TopViolators';
 import { ViolationFeed } from './dashboard/ViolationFeed';
-import { CalendarHeatmap } from './dashboard/CalendarHeatmap';
 import { InsightsPanel } from './dashboard/InsightsPanel';
 
 export function DashboardTab() {
@@ -35,7 +34,6 @@ export function DashboardTab() {
     const [zoneAnalytics, setZoneAnalytics] = useState([]);
     const [zones, setZones] = useState([]);
     const [violationFeed, setViolationFeed] = useState([]);
-    const [calendarData, setCalendarData] = useState([]);
     const [safetyScore, setSafetyScore] = useState(null);
     const [insights, setInsights] = useState([]);
 
@@ -47,7 +45,7 @@ export function DashboardTab() {
             const [
                 metricsRes, workersRes, topRes, sevRes,
                 dailyRes, zoneRes, zonesRes, feedRes,
-                calRes, scoreRes, insightsRes
+                scoreRes, insightsRes
             ] = await Promise.all([
                 dashboardApi.getMetrics(),
                 dashboardApi.getWorkers(),
@@ -57,7 +55,6 @@ export function DashboardTab() {
                 dashboardApi.getZoneAnalytics(),
                 dashboardApi.getZones(),
                 dashboardApi.getViolationFeed(),
-                dashboardApi.getCalendar(),
                 dashboardApi.getSafetyScore(),
                 dashboardApi.getInsights(),
             ]);
@@ -70,7 +67,6 @@ export function DashboardTab() {
             setZoneAnalytics(zoneRes);
             setZones(zonesRes);
             setViolationFeed(feedRes);
-            setCalendarData(calRes);
             setSafetyScore(scoreRes);
             setInsights(insightsRes);
             setLastUpdated(new Date());
@@ -84,13 +80,15 @@ export function DashboardTab() {
 
     useEffect(() => {
         fetchAllData();
-        const interval = setInterval(fetchAllData, 30000);
+        const interval = setInterval(() => {
+            fetchAllData();
+        }, 2000);
         return () => clearInterval(interval);
-    }, [fetchAllData]);
+    }, []);
 
-    const handleWorkerSearch = async (term) => {
+    const handleWorkerSearch = async () => {
         try {
-            const res = await dashboardApi.getWorkers(term);
+            const res = await dashboardApi.getWorkers();
             setWorkers(res);
         } catch (err) {
             console.error('Worker search failed:', err);
@@ -212,9 +210,6 @@ export function DashboardTab() {
                 <ZoneViolationsChart data={zoneAnalytics} />
                 <InsightsPanel data={insights} />
             </div>
-
-            {/* ── Calendar Heatmap ── */}
-            <CalendarHeatmap data={calendarData} />
 
             {/* ── Feed + Top Violators ── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

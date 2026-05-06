@@ -16,6 +16,57 @@ from ..core.websocket import broadcast_alert
 from ..geofence.engine import GeofenceEngine
 
 from app.services.face_recognition.recognize import recognize_worker
+from backend.database import get_connection
+from datetime import datetime
+
+# ================= DASHBOARD =================
+def save_violations(
+    detections,
+    worker_id,
+    zone_name=None,
+    is_geofence=0
+):
+
+    try:
+
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        for det in detections:
+
+            violation_type = det["class"]
+
+            if is_geofence == 0:
+                if "N0-" not in violation_type:
+                    continue
+
+            severity = 3 if "Hardhat" in violation_type else 2
+
+            cursor.execute("""
+            INSERT INTO violations (
+                worker_id,
+                violation_type,
+                severity_grade,
+                zone_name,
+                is_geofence,
+                timestamp
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                worker_id,
+                violation_type,
+                severity,
+                zone_name,
+                is_geofence,
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            ))
+
+        conn.commit()
+        conn.close()
+
+    except Exception as e:
+        print("DB ERROR:", e)
+# ================= Geofence IOA =================
 
 geofence_engine = GeofenceEngine(ioa_threshold=0.3)
 
@@ -260,6 +311,14 @@ def run_ai_task(frame):
     
     # ===== PPE VIOLATIONS =====
     violations = extract_violations(detections)
+    now = time.time()
+    if not hasattr(generate_frames, "last_db_save"):
+        generate_frames.last_db_save = 0
+        
+    if now - generate_frames.last_db_save > 2:  # every 2 seconds
+        save_violations(detections, worker_id, zone_name=None, is_geofence=0)
+        generate_frames.last_db_save = now
+        
     if violations and alert_manager.can_alert():
         msg = f"PPE violation by {worker_id}: " + ", ".join(violations)
         alert_data = alert_manager.trigger(msg)
@@ -274,6 +333,14 @@ def run_ai_task(frame):
                 for zone_name, violation_classes in violations_dict.items():
                     if alert_manager.can_alert_geofence(zone_name):
                         violations_str = ", ".join(violation_classes)
+                        geo_detections = []
+                        for v in violation_classes:
+                            geo_detections.append({
+                                "class": v,
+                            })
+                        print("GEOFENCE DB SAVE:", zone_name)
+                        save_violations(geo_detections, worker_id, zone_name, is_geofence=1)
+                        
                         geofence_msg = f"Zone violation by {worker_id}: {violations_str} in '{zone_name}'"
                         alert_data = alert_manager.trigger_geofence(zone_name, {"violations": violation_classes, "worker_id": worker_id})
                         alert_data["message"] = geofence_msg
